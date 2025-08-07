@@ -11,8 +11,18 @@ const {setGlobalOptions, https} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const dbAdmin = require("firebase-admin");
+const fs = require('fs');
 dbAdmin.initializeApp();
 let shouldValidateAuth = false;
+const OpenAI = require('openai');
+const ASSISTANT_ID = 'asst_eTSbNiV4lLmWpJmM9YNzYZkY'; 
+const MODEL_ID = 'gpt-4.1-nano';
+const OPENAI_API_KEY = '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';
+const promptPath = './src/prompt.txt';
+
+const openai = new OpenAI({
+    apiKey: OPENAI_API_KEY,
+  });
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -33,6 +43,121 @@ exports.helloWorld =  https.onCall((data, context) => {
     return "Hello from Firebase!";
 });
 
+exports.getQuestionsThread =  https.onCall(async (data, context) => {
+    
+
+    console.log("data :: ",data);
+    
+    userData = await getOrCreateFun(data, context);
+    data = data?.data;
+    if(userData?.topics?.length === 0){
+        return [];
+    }
+    console.log("userData :: ",userData);
+    topic = getRandomTopic(userData?.topics);
+    console.log("topic :: ",topic);
+    agentId = userData?.agentId;
+    console.log("agentId :: ",agentId);
+    if(!agentId || agentId.trim() === ''){
+        console.log("setPrompt");
+        const {threadId, questions} = await setPrompt(userData?.uid, topic);
+        await dbAdmin.firestore().collection("users").doc(userData?.uid).update({
+            agentId: threadId
+        })
+        return questions;
+    }
+    return await getQuestionOntopic(data?.option, topic, agentId)
+});
+
+const readFileAsString = (filePath) => {
+    try {
+      const data = fs.readFileSync(filePath, 'utf8'); // Synchronous read
+      return data;
+    } catch (error) {
+      console.error(`Error reading file: ${error.message}`);
+      return null;
+    }
+  }
+
+  const getRandomTopic = (topics) => {
+    return topics[Math.floor(Math.random() * topics.length)];
+  }
+
+const getQuestionOntopic = async (option, topic, threadId) => {
+    var response = await openai.beta.threads.messages.create(threadId, {
+        role: 'user',
+        content: "{'answer': '" + option + "','nextTopic': '" + topic + "'}",
+      });
+    console.log("response :: ",response);
+    questions = await runAssistant(threadId);
+    return {threadId: threadId, questions: questions}
+}
+
+const setPrompt = async (uid, initialTopic) => {
+    prompt = getPrompt(initialTopic);
+    const threadId = await getOrCreateThreadId(uid);
+    var response = await openai.beta.threads.messages.create(threadId, {
+        role: 'user',
+        content: prompt,
+      });
+
+      console.log("response :: ",response);
+
+    questions = await runAssistant(threadId);
+
+    return {threadId: threadId, questions: questions}
+}
+
+const runAssistant = async (threadId) => {
+    console.log("start thread :: ",threadId);
+    const run = await openai.beta.threads.runs.create(threadId, {
+        assistant_id: ASSISTANT_ID
+      });
+
+      console.log("run :: ",run);
+    
+      // Poll until run completes (you could also use webhooks for better performance)
+      let completed = false;
+      let runStatus = null;
+      while (!completed) {
+        console.log("run.id :: ",run.id);
+        console.log("threadId :: ",threadId);
+        if (!threadId || !run?.id) {
+            console.log("Missing threadId or run.id");
+            throw new Error("Missing threadId or run.id");
+          }
+        runStatus = await openai.beta.threads.runs.retrieve(run.id, {thread_id: threadId});
+        console.log("runStatus :: ",runStatus);
+        if (runStatus.status === 'completed') {
+          completed = true;
+        } else if (['failed', 'cancelled', 'expired'].includes(runStatus.status)) {
+          throw new Error('Run failed: ' + runStatus.status);
+        }
+        await new Promise((r) => setTimeout(r, 1000)); // wait 1 sec
+      }
+    
+      // Retrieve messages
+      const messages = await openai.beta.threads.messages.list(threadId, {
+        order: 'desc',
+        limit: 2
+      });
+      return messages;
+}
+
+const getPrompt = (initialTopic) => {
+    return readFileAsString(promptPath).replace("${topic}", initialTopic);
+}
+
+const getOrCreateThreadId = async (uid) => {
+    const userRef = dbAdmin.firestore().collection('users').doc(uid);
+    const doc = await userRef.get();
+    if (doc.exists && doc.data().thread_id) {
+      return doc.data().thread_id;
+    }
+    const thread = await openai.beta.threads.create();
+    await userRef.set({ thread_id: thread.id }, { merge: true });
+    return thread.id;
+}
 
 exports.getOrCreateTopicCollection =  https.onCall(async (data, context) => {
     return await getOrCreateFun(data, context);

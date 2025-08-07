@@ -1,0 +1,24 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+        "name": "Attach to Firebase Functions",
+        "type": "node",
+        "request": "attach",
+        "port": 8704, // Use the port shown in the terminal output
+        "skipFiles": ["<node_internals>/**"]
+      },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}\\functions\\index.js"
+        }
+    ]
+}
