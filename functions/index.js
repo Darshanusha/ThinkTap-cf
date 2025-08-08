@@ -17,12 +17,17 @@ let shouldValidateAuth = false;
 const OpenAI = require('openai');
 const ASSISTANT_ID = 'asst_eTSbNiV4lLmWpJmM9YNzYZkY'; 
 const MODEL_ID = 'gpt-4.1-nano';
-const OPENAI_API_KEY = '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';
+//https://platform.openai.com/docs/pricing?latest-pricing=standard
+const OPENAI_API_KEY = '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';
 const promptPath = './src/prompt.txt';
+const promptPathV2 = './src/independent_prompt.txt';
+const MAX_TOKENS = 500; // expirement with this value
 
 const openai = new OpenAI({
     apiKey: OPENAI_API_KEY,
   });
+
+const MAX_QUESTIONS = 40;
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -42,6 +47,63 @@ exports.helloWorld =  https.onCall((data, context) => {
     logger.info("context", context);
     return "Hello from Firebase!";
 });
+
+exports.getQuestionsV1 =  https.onCall(async (data, context) => {
+
+    userData = await getOrCreateFunV2(data, context);
+    data = data?.data;
+    if(userData?.topics?.length === 0){
+        return [];
+    }
+    topic = getRandomTopic(userData?.topics);
+    console.log("topic :: ",topic);
+
+    topicCollection = await getOrCreateTopicsV2(topic, userData?.uid);
+    questions = topicCollection?.[topic];
+
+    let res = await getQuestionOntopicV2(topic, questions)
+    let mcq = JSON.parse(res.choices[0].message.content);
+    if(!questions || questions?.length === 0){
+        questions = [];
+    }
+    questions.push(mcq.question);
+    if(questions.length >= MAX_QUESTIONS){
+        questions.splice(0, questions.length - MAX_QUESTIONS);
+    }
+
+    dbAdmin.firestore().collection("topics").doc(userData?.uid).update({
+        [topic]: questions
+    })
+    return mcq;
+    
+    
+});
+
+const getQuestionOntopicV2 = async (topic, questions = []) => {
+    let buildJson = {
+        topic: topic,
+        exclude_questions: questions
+    }
+    let prompt = getPromptV2();
+    console.log("buildJson :: ",buildJson);
+    let response = await openai.chat.completions.create({
+            model: MODEL_ID,
+            messages: [
+              {
+                role: "system",
+                content: prompt,
+              },
+              {
+                role: "user",
+                content: JSON.stringify(buildJson),
+              },
+            ],
+            max_tokens: MAX_TOKENS,
+            temperature: 0.7,
+          });
+          console.log("response.usage.total_tokens :: ",response?.usage?.total_tokens);
+          return response;
+}
 
 exports.getQuestionsThread =  https.onCall(async (data, context) => {
     
@@ -144,6 +206,10 @@ const runAssistant = async (threadId) => {
       return messages;
 }
 
+const getPromptV2 = () => {
+    return readFileAsString(promptPathV2);
+}
+
 const getPrompt = (initialTopic) => {
     return readFileAsString(promptPath).replace("${topic}", initialTopic);
 }
@@ -162,6 +228,49 @@ const getOrCreateThreadId = async (uid) => {
 exports.getOrCreateTopicCollection =  https.onCall(async (data, context) => {
     return await getOrCreateFun(data, context);
 });
+
+const getOrCreateFunV2 = async (data, context) => {
+    userData = data?.data;
+    uid = userData?.uid;
+    validateAuth(data, context);
+    console.log("context :: ",context.auth);
+    console.log("userData :: ",userData);
+    return await dbAdmin.firestore().collection("users").doc(uid).get().then((doc) => {
+        if (doc.exists) {
+            return doc.data();
+        } else {
+            dbAdmin.firestore().collection("users").doc(uid).set({
+                responseId: '',
+                name: userData?.name,
+                email: userData?.email,
+                uid: uid,
+                topics:[],
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+            return dbAdmin.firestore().collection("users").doc(uid).get();
+        }
+    }).catch((error) => {
+        return error;
+    });
+}
+
+const getOrCreateTopicsV2 = async (topic, uid) => {
+    return await dbAdmin.firestore().collection("topics").doc(uid).get().then((doc) => {
+        if (doc.exists) {
+            let data = doc.data();
+            console.log("topics :: ",data);
+            return data;
+        } else {
+            dbAdmin.firestore().collection("topics").doc(uid).set({
+                [topic] : []
+            });
+            return dbAdmin.firestore().collection("topics").doc(uid).get();
+        }
+    }).catch((error) => {
+        return error;
+    });
+}
 
 const getOrCreateFun = async (data, context) => {
     userData = data?.data;
