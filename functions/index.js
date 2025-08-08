@@ -16,9 +16,9 @@ dbAdmin.initializeApp();
 let shouldValidateAuth = false;
 const OpenAI = require('openai');
 const ASSISTANT_ID = 'asst_eTSbNiV4lLmWpJmM9YNzYZkY'; 
-const MODEL_ID = 'gpt-5-nano';
+const MODEL_ID = 'gpt-4.1-nano';
 //https://platform.openai.com/docs/pricing?latest-pricing=standard
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = 'API_KEY';
 const promptPath = './src/prompt.txt';
 const promptPathV2 = './src/independent_prompt.txt';
 const MAX_TOKENS = 500; // expirement with this value
