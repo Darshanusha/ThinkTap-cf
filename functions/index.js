@@ -27,7 +27,7 @@ const openai = new OpenAI({
   });
 
 const MAX_QUESTIONS = 40;
-const MAX_QUESTIONS_PER_MONTH = 2;
+const MAX_QUESTIONS_PER_MONTH = 5000;
 const MAX_TOKENS_PER_MONTH = 5000000;
 
 // For cost control, you can set the maximum number of containers that can be
