@@ -159,8 +159,8 @@ exports.getQuestionsV1 =  https.onCall(async (data, context) => {
     }
 
 
-    if(userData?.topics?.length === 0){
-        return [];
+    if(!userData?.topics || userData?.topics?.length === 0){
+        return null;
     }
 
     topic = getRandomTopic(userData?.topics);
@@ -252,6 +252,9 @@ const readFileAsString = (filePath) => {
   }
 
   const getRandomTopic = (topics) => {
+    if(!topics || topics?.length === 0){
+        return undefined;
+    }
     return topics[Math.floor(Math.random() * topics.length)];
   }
 
