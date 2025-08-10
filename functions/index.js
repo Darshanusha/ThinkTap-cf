@@ -11,8 +11,10 @@ const {setGlobalOptions, https} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
 const dbAdmin = require("firebase-admin");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { sendNotificationToTokens } = require("./src/notification");
 const fs = require('fs');
-dbAdmin.initializeApp();
+//dbAdmin.initializeApp();
 let shouldValidateAuth = false;
 const OpenAI = require('openai');
 const ASSISTANT_ID = 'asst_eTSbNiV4lLmWpJmM9YNzYZkY'; 
@@ -48,6 +50,95 @@ exports.helloWorld =  https.onCall((data, context) => {
     logger.info("context", context);
     return "Hello from Firebase!";
 });
+
+exports.cronToSendNotification = onSchedule(
+    {
+      schedule: "0 8,20 * * *",
+      timeZone: "Asia/Kolkata"
+    },
+    (event) => {
+        sendNotificationToTokens("Quiz Alert", "You have a new practice question");
+    }
+  );
+
+exports.addFcmToken = https.onCall(async (data, context) => {
+    userData = data?.data;
+    uid = userData?.uid;
+    validateAuth(data, context);
+    console.log("userData :: ",userData);
+    return await dbAdmin.firestore().collection("users").doc(uid).update({
+        fcmToken: userData?.fcmToken
+    });
+});
+
+exports.testNofification = https.onCall(async (data, context) => {
+    return await sendNotificationToTokens("Quiz Alert", "You have a new practice question");
+});
+
+const getAllFcmTokens = async () => {
+    try {
+      const usersSnapshot = await dbAdmin.firestore().collection("users").get();
+  
+      let allTokens = [];
+  
+      usersSnapshot.forEach((doc) => {
+        const data = doc.data();
+  
+        // If you store single token
+        if (data.fcmToken) {
+          allTokens.push(data.fcmToken);
+        }
+  
+        // // If you store array of tokens
+        // if (Array.isArray(data.fcmTokens)) {
+        //   allTokens = allTokens.concat(data.fcmTokens);
+        // }
+      });
+  
+      // Remove duplicates & empty/null tokens
+      const uniqueTokens = [...new Set(allTokens)].filter(Boolean);
+  
+      return uniqueTokens;
+    } catch (error) {
+      console.error("Error fetching FCM tokens:", error);
+      return error;
+    }
+}
+
+const sendNotification = (token, question, body) => {
+
+    const message = buildMessage(token, "Start Practice", "You have a new practice question")
+    //const message  = buildMessageV2()
+
+    try {
+        dbAdmin.messaging().send(message);
+        console.log('Notification sent successfully');
+        return null;
+    } catch (error) {
+        console.error('Error sending notification:', error);
+        return null;
+    }
+}
+
+const buildMessage = (token, title, body) => {
+    const message = {
+        token: token, // FCM device token
+        notification: {
+          title: title,
+          body: body,
+        },
+        android: {
+          priority: "high",
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+            },
+          },
+        },
+      };
+}
 
 exports.getQuestionsV1 =  https.onCall(async (data, context) => {
 
