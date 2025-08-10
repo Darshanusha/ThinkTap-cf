@@ -22,12 +22,13 @@ const OPENAI_API_KEY = 'API_KEY';
 const promptPath = './src/prompt.txt';
 const promptPathV2 = './src/independent_prompt.txt';
 const MAX_TOKENS = 500; // expirement with this value
-
 const openai = new OpenAI({
     apiKey: OPENAI_API_KEY,
   });
 
 const MAX_QUESTIONS = 40;
+const MAX_QUESTIONS_PER_MONTH = 2;
+const MAX_TOKENS_PER_MONTH = 5000000;
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -52,16 +53,31 @@ exports.getQuestionsV1 =  https.onCall(async (data, context) => {
 
     userData = await getOrCreateFunV2(data, context);
     data = data?.data;
+
+    mmYYYY = new Date().getMonth() + 1 + "" + new Date().getFullYear();
+
+    questionKey = mmYYYY + "_questions";
+    tokenKey = mmYYYY + "_tokens";
+
+    questionCount = userData?.[questionKey] || 0;
+    tokenCount = userData?.[tokenKey] || 0;
+
+    if(questionCount >= MAX_QUESTIONS_PER_MONTH || tokenCount >= MAX_TOKENS_PER_MONTH){
+        console.log("Max question / token limit reached :: ", questionCount, tokenCount, userData?.uid);
+        throw new https.HttpsError('resource-exhausted','Max question / token limit reached', `You have reached the maximum number of questions ${questionCount} / tokens ${tokenCount} for this month please contact dugnam@gmail.com for extension`);
+    }
+
+
     if(userData?.topics?.length === 0){
         return [];
     }
+
     topic = getRandomTopic(userData?.topics);
-    console.log("topic :: ",topic);
 
     topicCollection = await getOrCreateTopicsV2(topic, userData?.uid);
     questions = topicCollection?.[topic];
 
-    let res = await getQuestionOntopicV2(topic, questions)
+    let res = await getQuestionOntopicV2(userData?.uid, topic, questions)
     let mcq = JSON.parse(res.choices[0].message.content);
     if(!questions || questions?.length === 0){
         questions = [];
@@ -74,18 +90,20 @@ exports.getQuestionsV1 =  https.onCall(async (data, context) => {
     dbAdmin.firestore().collection("topics").doc(userData?.uid).update({
         [topic]: questions
     })
+
+    dbAdmin.firestore().collection("users").doc(userData?.uid).update({
+        [questionKey]: questionCount + 1,
+        [tokenKey]: tokenCount + res.usage.total_tokens
+    })
     return mcq;
-    
-    
 });
 
-const getQuestionOntopicV2 = async (topic, questions = []) => {
+const getQuestionOntopicV2 = async (uid, topic, questions = []) => {
     let buildJson = {
         topic: topic,
         exclude_questions: questions
     }
     let prompt = getPromptV2();
-    console.log("buildJson :: ",buildJson);
     let response = await openai.chat.completions.create({
             model: MODEL_ID,
             messages: [
@@ -102,6 +120,7 @@ const getQuestionOntopicV2 = async (topic, questions = []) => {
             temperature: 0.7,
           });
           console.log("response.usage.total_tokens :: ",response?.usage?.total_tokens);
+          console.log("uid :: ",uid);
           return response;
 }
 
@@ -150,7 +169,6 @@ const getQuestionOntopic = async (option, topic, threadId) => {
         role: 'user',
         content: "{'answer': '" + option + "','nextTopic': '" + topic + "'}",
       });
-    console.log("response :: ",response);
     questions = await runAssistant(threadId);
     return {threadId: threadId, questions: questions}
 }
@@ -162,8 +180,6 @@ const setPrompt = async (uid, initialTopic) => {
         role: 'user',
         content: prompt,
       });
-
-      console.log("response :: ",response);
 
     questions = await runAssistant(threadId);
 
@@ -233,8 +249,6 @@ const getOrCreateFunV2 = async (data, context) => {
     userData = data?.data;
     uid = userData?.uid;
     validateAuth(data, context);
-    console.log("context :: ",context.auth);
-    console.log("userData :: ",userData);
     return await dbAdmin.firestore().collection("users").doc(uid).get().then((doc) => {
         if (doc.exists) {
             return doc.data();
@@ -259,7 +273,6 @@ const getOrCreateTopicsV2 = async (topic, uid) => {
     return await dbAdmin.firestore().collection("topics").doc(uid).get().then((doc) => {
         if (doc.exists) {
             let data = doc.data();
-            console.log("topics :: ",data);
             return data;
         } else {
             dbAdmin.firestore().collection("topics").doc(uid).set({
