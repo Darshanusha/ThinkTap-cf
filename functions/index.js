@@ -13,24 +13,13 @@ const logger = require("firebase-functions/logger");
 const dbAdmin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { sendNotificationToTokens } = require("./src/notification");
-const fs = require('fs');
-//dbAdmin.initializeApp();
-let shouldValidateAuth = false;
-const OpenAI = require('openai');
-const ASSISTANT_ID = 'asst_eTSbNiV4lLmWpJmM9YNzYZkY'; 
-const MODEL_ID = 'gpt-4.1-nano';
-//https://platform.openai.com/docs/pricing?latest-pricing=standard
-const OPENAI_API_KEY = 'API_KEY';
-const promptPath = './src/prompt.txt';
-const promptPathV2 = './src/independent_prompt.txt';
-const MAX_TOKENS = 500; // expirement with this value
-const openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
-  });
 
-const MAX_QUESTIONS = 40;
-const MAX_QUESTIONS_PER_MONTH = 5000;
-const MAX_TOKENS_PER_MONTH = 5000000;
+//dbAdmin.initializeApp();
+
+
+
+const { getQuestionHelper } = require("./src/utils/questionsHelper");
+const { getRandomTopic, validateAuth, getPromptV2 } = require("./src/utils/helper");
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -141,79 +130,9 @@ const buildMessage = (token, title, body) => {
 }
 
 exports.getQuestionsV1 =  https.onCall(async (data, context) => {
-
-    userData = await getOrCreateFunV2(data, context);
-    data = data?.data;
-
-    mmYYYY = new Date().getMonth() + 1 + "" + new Date().getFullYear();
-
-    questionKey = mmYYYY + "_questions";
-    tokenKey = mmYYYY + "_tokens";
-
-    questionCount = userData?.[questionKey] || 0;
-    tokenCount = userData?.[tokenKey] || 0;
-
-    if(questionCount >= MAX_QUESTIONS_PER_MONTH || tokenCount >= MAX_TOKENS_PER_MONTH){
-        console.log("Max question / token limit reached :: ", questionCount, tokenCount, userData?.uid);
-        throw new https.HttpsError('resource-exhausted','Max question / token limit reached', `You have reached the maximum number of questions ${questionCount} / tokens ${tokenCount} for this month please contact dugnam@gmail.com for extension`);
-    }
-
-
-    if(!userData?.topics || userData?.topics?.length === 0){
-        return null;
-    }
-
-    topic = getRandomTopic(userData?.topics);
-
-    topicCollection = await getOrCreateTopicsV2(topic, userData?.uid);
-    questions = topicCollection?.[topic];
-
-    let res = await getQuestionOntopicV2(userData?.uid, topic, questions)
-    let mcq = JSON.parse(res.choices[0].message.content);
-    if(!questions || questions?.length === 0){
-        questions = [];
-    }
-    questions.push(mcq.question);
-    if(questions.length >= MAX_QUESTIONS){
-        questions.splice(0, questions.length - MAX_QUESTIONS);
-    }
-
-    dbAdmin.firestore().collection("topics").doc(userData?.uid).update({
-        [topic]: questions
-    })
-
-    dbAdmin.firestore().collection("users").doc(userData?.uid).update({
-        [questionKey]: questionCount + 1,
-        [tokenKey]: tokenCount + res.usage.total_tokens
-    })
-    return mcq;
+  return getQuestionHelper(data, context);
 });
 
-const getQuestionOntopicV2 = async (uid, topic, questions = []) => {
-    let buildJson = {
-        topic: topic,
-        exclude_questions: questions
-    }
-    let prompt = getPromptV2();
-    let response = await openai.chat.completions.create({
-            model: MODEL_ID,
-            messages: [
-              {
-                role: "system",
-                content: prompt,
-              },
-              {
-                role: "user",
-                content: JSON.stringify(buildJson),
-              },
-            ],
-            max_tokens: MAX_TOKENS,
-            temperature: 0.7,
-          });
-          console.log("response.usage.total_tokens :: ",response?.usage?.total_tokens);
-          console.log("uid :: ",uid);
-          return response;
-}
 
 exports.getQuestionsThread =  https.onCall(async (data, context) => {
     
@@ -241,22 +160,9 @@ exports.getQuestionsThread =  https.onCall(async (data, context) => {
     return await getQuestionOntopic(data?.option, topic, agentId)
 });
 
-const readFileAsString = (filePath) => {
-    try {
-      const data = fs.readFileSync(filePath, 'utf8'); // Synchronous read
-      return data;
-    } catch (error) {
-      console.error(`Error reading file: ${error.message}`);
-      return null;
-    }
-  }
 
-  const getRandomTopic = (topics) => {
-    if(!topics || topics?.length === 0){
-        return undefined;
-    }
-    return topics[Math.floor(Math.random() * topics.length)];
-  }
+
+
 
 const getQuestionOntopic = async (option, topic, threadId) => {
     var response = await openai.beta.threads.messages.create(threadId, {
@@ -316,9 +222,7 @@ const runAssistant = async (threadId) => {
       return messages;
 }
 
-const getPromptV2 = () => {
-    return readFileAsString(promptPathV2);
-}
+
 
 const getPrompt = (initialTopic) => {
     return readFileAsString(promptPath).replace("${topic}", initialTopic);
@@ -339,45 +243,7 @@ exports.getOrCreateTopicCollection =  https.onCall(async (data, context) => {
     return await getOrCreateFun(data, context);
 });
 
-const getOrCreateFunV2 = async (data, context) => {
-    userData = data?.data;
-    uid = userData?.uid;
-    validateAuth(data, context);
-    return await dbAdmin.firestore().collection("users").doc(uid).get().then((doc) => {
-        if (doc.exists) {
-            return doc.data();
-        } else {
-            dbAdmin.firestore().collection("users").doc(uid).set({
-                responseId: '',
-                name: userData?.name,
-                email: userData?.email,
-                uid: uid,
-                topics:[],
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
-            return dbAdmin.firestore().collection("users").doc(uid).get();
-        }
-    }).catch((error) => {
-        return error;
-    });
-}
 
-const getOrCreateTopicsV2 = async (topic, uid) => {
-    return await dbAdmin.firestore().collection("topics").doc(uid).get().then((doc) => {
-        if (doc.exists) {
-            let data = doc.data();
-            return data;
-        } else {
-            dbAdmin.firestore().collection("topics").doc(uid).set({
-                [topic] : []
-            });
-            return dbAdmin.firestore().collection("topics").doc(uid).get();
-        }
-    }).catch((error) => {
-        return error;
-    });
-}
 
 const getOrCreateFun = async (data, context) => {
     userData = data?.data;
@@ -426,16 +292,3 @@ exports.updateTopic = https.onCall(async (data, context) => {
 // });
 
 
-const validateAuth = (data, context) => {
-    if(!shouldValidateAuth){
-        return;
-    }
-    userData = data?.data;
-    uid = userData?.uid;    
-    if (!context.auth) {
-        throw new https.HttpsError('unauthenticated', 'Authentication required');
-    }
-    if(uid !== context.auth.uid){
-        throw new https.HttpsError('forbidden', 'You are not authorized to perform this action');
-    }
-}
