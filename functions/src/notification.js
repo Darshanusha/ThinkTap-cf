@@ -36,9 +36,9 @@ async function sendNotificationToTokens() {
 
     while (true) {
       let query = dbAdmin.collection("users")
-        .where("fcmToken", ">", "")
-        //.where("uid", "==", "pUWyOoTXceYYaBPaUUNPUXJ9HXP2")
-        .limit(USERS_PAGE_SIZE);
+        //.where("fcmToken", ">", "")
+        .where("uid", "==", "pUWyOoTXceYYaBPaUUNPUXJ9HXP2")
+        //.limit(USERS_PAGE_SIZE);
         //console.log("query :: ",query);
 
       if (lastDoc) query = query.startAfter(lastDoc);

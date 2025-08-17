@@ -13,6 +13,7 @@ const logger = require("firebase-functions/logger");
 const dbAdmin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { sendNotificationToTokens } = require("./src/notification");
+const { handelWrongAnswer } = require("./src/utils/wrongAnswers");
 
 //dbAdmin.initializeApp();
 
@@ -45,10 +46,14 @@ exports.cronToSendNotification = onSchedule(
       schedule: "0 8,20 * * *",
       timeZone: "Asia/Kolkata"
     },
-    (event) => {
+    (event) => {testNofification
         sendNotificationToTokens();
     }
   );
+
+exports.handelWrongAnswer = https.onCall(async (data, context) => {
+  return await handelWrongAnswer(data, context);
+});
 
 exports.addFcmToken = https.onCall(async (data, context) => {
     userData = data?.data;
