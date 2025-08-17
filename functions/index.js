@@ -46,7 +46,7 @@ exports.cronToSendNotification = onSchedule(
       timeZone: "Asia/Kolkata"
     },
     (event) => {
-        sendNotificationToTokens("Quiz Alert", "You have a new practice question");
+        sendNotificationToTokens();
     }
   );
 
@@ -61,7 +61,7 @@ exports.addFcmToken = https.onCall(async (data, context) => {
 });
 
 exports.testNofification = https.onCall(async (data, context) => {
-    return await sendNotificationToTokens("Quiz Alert", "You have a new practice question");
+    return await sendNotificationToTokens();
 });
 
 const getAllFcmTokens = async () => {

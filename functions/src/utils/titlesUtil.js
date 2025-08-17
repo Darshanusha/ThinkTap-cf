@@ -1,0 +1,9 @@
+// Competitive & Provocative Notification Titles
+const competitiveTitles = ["Think you’re smarter than your friends? Prove it!", "Ready to defend your rank? 🏆", "Leaderboard alert: A new challenge awaits!", "Climb higher — solve this now!", "Others are pulling ahead… catch up fast!", "One right answer = one step closer to #1", "Don’t let someone else take your spot 👑", "Beat the clock, beat the crowd ⏳", "Your rival just scored — what about you?", "Stay sharp, stay on top!", "The leaderboard won’t wait… neither should you!", "Others are solving this, are you?", "Beat your own record with this one!", "This one’s made for you 💡", "Your daily challenge is here 🚀", "One step closer to mastery!", "Sharpen your mind with this question ✨", "Your brain workout is ready 🧠", "Challenge unlocked: Solve this!", "Bet you can’t answer this!", "Can you crack this one? 🤔", "Don’t let someone else steal your glory ✨", "Others solved it. Will you?", "Don’t get dethroned. Answer now!", "The battle for #1 continues…", "Stay ahead of the competition 🚀", "Smartest wins. Are you in?", "Others gaining fast… don’t fall behind!", "Can you defend your crown 👑?", "Every second counts ⏳ — get back in the game!", "Think you can stay on top? Time to prove it.", "One question could change the rankings ⚡", "Champions don’t rest. Solve this!", "Others are scoring… where are you?", "Defend your legacy now!", "They want your throne… stop them!", "Every legend faces a challenger ⚔️", "Your rival is closing in 👀", "It’s you vs. everyone else", "Will you stay on top or drop?", "One question decides it all 🎲", "Show no mercy. Stay #1.", "Your dominance is on the line 🏹"];
+
+function getRandomCompetitiveTitle() {
+  const randomIndex = Math.floor(Math.random() * competitiveTitles.length);
+  return competitiveTitles[randomIndex];
+}
+
+module.exports = { getRandomCompetitiveTitle };

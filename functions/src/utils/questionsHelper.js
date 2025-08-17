@@ -56,6 +56,7 @@ const getQuestionHelper = async (data, context) => {
       [questionKey]: questionCount + 1,
       [tokenKey]: tokenCount + res.usage.total_tokens
   })
+  mcq.total_tokens = res.usage.total_tokens;
   return mcq;
 }
 
