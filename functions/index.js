@@ -46,7 +46,7 @@ exports.cronToSendNotification = onSchedule(
       schedule: "0 8,20 * * *",
       timeZone: "Asia/Kolkata"
     },
-    (event) => {testNofification
+    (event) => {
         sendNotificationToTokens();
     }
   );
