@@ -36,8 +36,8 @@ async function sendNotificationToTokens() {
 
     while (true) {
       let query = dbAdmin.collection("users")
-        //.where("fcmToken", ">", "")
-        .where("uid", "==", "pUWyOoTXceYYaBPaUUNPUXJ9HXP2")
+        .where("fcmToken", ">", "")
+        //.where("uid", "==", "pUWyOoTXceYYaBPaUUNPUXJ9HXP2")
         //.limit(USERS_PAGE_SIZE);
         //console.log("query :: ",query);
 
@@ -63,14 +63,13 @@ async function sendNotificationToTokens() {
           if (tokens.length === 0) continue;
 
           // 🔹 Send personalized notification
+          let data = typeof apiResponse === "object" ? Object.fromEntries(
+            Object.entries(apiResponse).map(([k,v]) => [k, String(v)])
+          ) : { result: String(apiResponse) } 
           const response = await admin.messaging().sendEachForMulticast({
             tokens,
             notification: { title: getRandomCompetitiveTitle(), body: apiResponse?.question }, // show title as body too
-            data: Object.keys(apiResponse || {}).forEach(key => {
-              if (typeof apiResponse[key] !== "string") {
-                apiResponse[key] = JSON.stringify(apiResponse[key]);
-              }
-            })
+            data: data
           });
 
 
