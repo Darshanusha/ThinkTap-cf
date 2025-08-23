@@ -40,10 +40,20 @@ const getOrCreateFunV2 = async (data, context) => {
 }
 
 const getRandomTopic = (topics) => {
-    if(!topics || topics?.length === 0){
+    if (!topics || topics.length === 0) {
         return undefined;
     }
-    return topics[Math.floor(Math.random() * topics.length)];
+    
+    const activeTopics = topics
+        .filter(topic => !topic?.isPaused)
+        .map(topic => topic?.name)  // Use 'name' instead of 'topic'
+        .filter(Boolean);
+    
+    if (activeTopics.length === 0) {
+        return undefined;
+    }
+    
+    return activeTopics[Math.floor(Math.random() * activeTopics.length)];
 }
 
 const getOrCreateTopicsV2 = async (topic, uid) => {

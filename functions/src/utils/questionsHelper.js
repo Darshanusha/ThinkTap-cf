@@ -37,7 +37,6 @@ const getQuestionHelper = async (data, context) => {
 
   topicCollection = await getOrCreateTopicsV2(topic, userData?.uid);
   questions = topicCollection?.[topic];
-
   let res = await getQuestionOntopicV2(userData?.uid, topic, questions)
   let mcq = JSON.parse(res.choices[0].message.content);
   if(!questions || questions?.length === 0){
