@@ -14,7 +14,7 @@ const dbAdmin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { sendNotificationToTokens } = require("./src/notification");
 const { handelWrongAnswer } = require("./src/utils/wrongAnswers");
-
+const { verifyAuth } = require("./src/utils/authVerifier");
 //dbAdmin.initializeApp();
 
 
@@ -34,10 +34,9 @@ const { getRandomTopic, validateAuth, getPromptV2 } = require("./src/utils/helpe
 // this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
-exports.helloWorld =  https.onCall((data, context) => {
-    logger.info("Hello logs!", {structuredData: true});
-    logger.info("data", data);
-    logger.info("context", context);
+exports.helloWorld =  https.onCall(async (data, context) => {
+    let res = await verifyAuth(data, context);
+    console.log("res :: ",res);
     return "Hello from Firebase!";
 });
 
@@ -52,13 +51,14 @@ exports.cronToSendNotification = onSchedule(
   );
 
 exports.handelWrongAnswer = https.onCall(async (data, context) => {
+  await verifyAuth(data, context);
   return await handelWrongAnswer(data, context);
 });
 
 exports.addFcmToken = https.onCall(async (data, context) => {
+    await verifyAuth(data, context);
     userData = data?.data;
     uid = userData?.uid;
-    validateAuth(data, context);
     console.log("userData :: ",userData);
     return await dbAdmin.firestore().collection("users").doc(uid).update({
         fcmToken: userData?.fcmToken
@@ -66,6 +66,7 @@ exports.addFcmToken = https.onCall(async (data, context) => {
 });
 
 exports.testNofification = https.onCall(async (data, context) => {
+    await verifyAuth(data, context);
     return await sendNotificationToTokens();
 });
 
@@ -135,6 +136,7 @@ const buildMessage = (token, title, body) => {
 }
 
 exports.getQuestionsV1 =  https.onCall(async (data, context) => {
+  await verifyAuth(data, context);
   return getQuestionHelper(data, context);
 });
 
